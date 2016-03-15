@@ -98,16 +98,16 @@ FROM
 ;
 
 
--- see if every loan balance matches the most recent transaction balance
-
+-- 2) see if every loan balance matches the most recent transaction balance
+# this will check within Mambu only.
 SELECT
 	# loan balance on loan
 	# loan balance on most recent transaction of loan
 	# matching
 	# count
-    l.principalbalance
-    ,ltd.balance
-    ,IF(l.principalbalance = ltd.balance,
+#    AVG(l.principalbalance)								AS avg_bal
+#    ,AVG(ltd.balance)									AS avg_bal_t
+    IF(l.principalbalance = ltd.balance,
 		"yes",
         "no")											AS matching
 	,COUNT(*)
@@ -131,203 +131,27 @@ GROUP BY
 	matching
 ;
 
--- see if transactions total to the same as loans.
 
--- see if disbursed amount matches up
--- how many didn't even have a disbursement
--- did loan have correct number of transactions?
--- Do loans have the correct number of repayments?
-
--- see if principal and interest total to the same thing.
+-- 3) see if transactions total to the same as loans.
 
 
-
-
--- junk
+-- 4) see if every loan has a disbursement transaction
 
 SELECT
-	COUNT(*)
-FROM
-	`mifos-guat`.m_loan_transaction;
-;
-
-SELECT 
-	COUNT(*) 
-FROM 
-	`guat`.loantransaction
-;
-
-SELECT
-	CREATIONDATE,
-    ENTRYDATE,
-    PRINCIPALAMOUNT,
-    INTERESTAMOUNT,
-    FEESAMOUNT,
-    PENALTYAMOUNT,
-    AMOUNT,
-    BALANCE
-    
-FROM
-    `guat`.loantransaction
-#where creationdate >= entrydate #21630
-;
-
-SELECT
-	transaction_date,
-    submitted_on_date,
-    created_date,
-    principal_portion_derived,
-    interest_portion_derived,
-    fee_charges_portion_derived,
-    penalty_charges_portion_derived,
-    amount,
-    outstanding_loan_balance_derived
-    
-FROM
-	`mifos-guat`.m_loan_transaction;
-;
-
-SELECT
-	SUM(principalamount)					AS tot_prin
-	,SUM(INTERESTAMOUNT)					AS tot_int
-FROM
-    `guat`.loantransaction
-
-UNION
-SELECT
-	SUM(principal_portion_derived)		AS tot_prin
-    ,SUM(interest_portion_derived)		AS tot_int
-FROM
-	`mifos-guat`.m_loan_transaction;
-;
-
-SELECT
-	mambu.CREATIONDATE,
-    mambu.ENTRYDATE,
-    mambu.PRINCIPALAMOUNT,
-    mambu.INTERESTAMOUNT,
-    mambu.FEESAMOUNT,
-    mambu.PENALTYAMOUNT,
-    mambu.AMOUNT,
-    mambu.BALANCE,
-    mifos.transaction_date,
-    mifos.submitted_on_date,
-    mifos.created_date,
-    mifos.principal_portion_derived,
-    mifos.interest_portion_derived,
-    mifos.fee_charges_portion_derived,
-    mifos.penalty_charges_portion_derived,
-    mifos.amount,
-    mifos.outstanding_loan_balance_derived
-FROM
-	(SELECT
-    	CREATIONDATE,
-		ENTRYDATE,
-		PRINCIPALAMOUNT,
-		INTERESTAMOUNT,
-		FEESAMOUNT,
-		PENALTYAMOUNT,
-		AMOUNT,
-		BALANCE
-	FROM
-        `guat`.loantransaction
- 	)									AS mambu
-
-LEFT JOIN
-	(SELECT
-		transaction_date,
-		submitted_on_date,
-		created_date,
-		principal_portion_derived,
-		interest_portion_derived,
-		fee_charges_portion_derived,
-		penalty_charges_portion_derived,
-		amount,
-		outstanding_loan_balance_derived
-	FROM
-        `mifos-guat`.m_loan_transaction
-	)									AS mifos
-	ON 
-		#mambu.principalamount = mifos.principal_portion_derived
-		#AND 
-		#mambu.interestamount = mifos.interest_portion_derived
-        #AND 
-        #mambu.amount = mifos.amount
-        mambu.creationdate = mifos.created_date
-WHERE
-	mifos.amount is not null
-;
-
-
-
-SELECT
-	'MAMBU'									AS src,
-	COUNT(CREATIONDATE)							AS cdate,
-	COUNT(ENTRYDATE)								AS edate,
-	COUNT(PRINCIPALAMOUNT)							AS principal,
-	COUNT(INTERESTAMOUNT)							AS interest,
-	COUNT(FEESAMOUNT)								AS fees,
-	COUNT(PENALTYAMOUNT)							AS penalty,
-	COUNT(AMOUNT)									AS amt,
-	COUNT(BALANCE)									AS balance
-FROM
-	`guat`.loantransaction
-UNION
-SELECT
-	'Mifos'									AS src,
-	COUNT(created_date)							AS cdate,
-	#submitted_on_date,
-	COUNT(transaction_date)						AS edate,
-	COUNT(principal_portion_derived)				AS principal,
-	COUNT(interest_portion_derived)				AS interest,
-	COUNT(fee_charges_portion_derived)				AS fees,
-	COUNT(penalty_charges_portion_derived)			AS penalty,
-	COUNT(amount)									AS amt,
-	COUNT(outstanding_loan_balance_derived)		AS balance
-FROM
-	`mifos-guat`.m_loan_transaction
-;
-
-SELECT
-	'MAMBU'									AS src,
-	COUNT(CREATIONDATE)							AS cdate,
-	COUNT(ENTRYDATE)								AS edate,
-	SUM(PRINCIPALAMOUNT)							AS principal,
-	SUM(INTERESTAMOUNT)							AS interest,
-	SUM(FEESAMOUNT)								AS fees,
-	SUM(PENALTYAMOUNT)							AS penalty,
-	SUM(AMOUNT)									AS amt,
-	SUM(BALANCE)									AS balance
-FROM
-	`guat`.loantransaction
-UNION
-SELECT
-	'Mifos'									AS src,
-	COUNT(created_date)							AS cdate,
-	#submitted_on_date,
-	COUNT(transaction_date)						AS edate,
-	SUM(principal_portion_derived)				AS principal,
-	SUM(interest_portion_derived)				AS interest,
-	SUM(fee_charges_portion_derived)				AS fees,
-	SUM(penalty_charges_portion_derived)			AS penalty,
-	SUM(amount)									AS amt,
-	SUM(outstanding_loan_balance_derived)		AS balance
-FROM
-	`mifos-guat`.m_loan_transaction
-;
-
-
--- see if every loan has a disbursement transaction
-
-SELECT
+# count of loans with disbursement
+# count of loans that didn't
+# count of disbursement transactions that didn't match a loan
+# count of disb. trans. that its loan doesn't say disbursed.
 	'Mambu'								AS src
 	,COUNT(DISTINCT l.encodedkey)		AS loans
 	,COUNT(DISTINCT lt.parentaccountkey)	AS loan_disbursements
     ,SUM(l.loanamount)					AS disbursed_loans
-	,SUM(lt.amount)						AS disbursed_transactions
+	,SUM(lt.amount)										AS disbursed_transactions
 FROM
-	`guat`.loanaccount	 		AS l
-    
+# all loans that say they have a disbursement in loanaccount
+# all transactions that are type disbursement.
+	`guat`.loanaccount	 								AS l
+
 LEFT JOIN
 	(
 		SELECT
@@ -362,65 +186,14 @@ LEFT JOIN
 ;
 
 
--- see if every loan balance matches the most recent transaction balance
-
-SELECT
-	CREATIONDATE
-	,balance # is this the balnce on the record that was MAX creationdate ?
-	,PARENTACCOUNTKEY
-FROM
-	`guat`.loantransaction
-ORDER BY
-	PARENTACCOUNTKEY
-;
-
-SELECT
-	lt.CREATIONDATE						AS maxdate
-	,lt.balance # is this the balnce on the record that was MAX creationdate ? No, it's the first balance of the parentaccountkey.
-	,cg.nam
-    ,l.ENCODEDKEY
-FROM
-	`guat`.loantransaction lt
-
-LEFT JOIN
-	`guat`.loanaccount l
-	ON
-	l.encodedkey = lt.parentaccountkey
-    
-LEFT JOIN
-	(
-		SELECT
-			firstname							AS nam
-			,encodedkey							AS encod
-		FROM
-			`guat`.`client` c
-		
-		UNION
-		SELECT
-			groupname						AS nam
-			,encodedkey							AS encod
-		FROM
-			`guat`.`group` g
-	)									AS cg
-    ON
-    l.accountholderkey = cg.encod
--- GROUP BY
--- 	parentaccountkey
-
-ORDER BY
-	maxdate
-;
+-- 5) see if disbursed amount matches up
 
 
+-- 6) how many didn't even have a disbursement
 
--- see if transactions total to the same as loans.
+
+-- 7) see if principal and interest total to the same thing.
 
 # total disbursements ?= total principal amount
 # total repaymeny ?= total repaid_derived
 #etc
-
-
-select distinct transaction_type_enum from `mifos-guat`.m_loan_transaction;
-
-select * from `mifos-guat`.r_enum_value
-where enum_name = 'transaction_type_enum';
