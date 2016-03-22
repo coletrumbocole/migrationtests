@@ -7,18 +7,46 @@ SELECT * FROM input_db.user;
 SELECT * FROM `mifostenant-default`.m_staff;
 
 
+-- 1) compare list of users in Mambu to staff in Mifos
+
+SELECT
+	firstname
+	,lastname
+	,username
+	,isadministrator
+	,isteller
+	,iscreditofficer
+	,issupport
+	,userstate
+FROM 
+	input_db.user
+;
+
+SELECT 
+	firstname
+    ,lastname
+    ,display_name
+    ,is_loan_officer
+    ,is_active
+FROM 
+	`mifostenant-default`.m_staff
+;
+
 -- see if names match
 
 SELECT 
-	u.FIRSTNAME
-    ,s.firstname
+	IF(u.FIRSTNAME = s.firstname,
+		"yes",
+        "no")											AS matching_firstname
 FROM 
-	input_db.user u
+	input_db.user										AS u
+
 	LEFT JOIN
-	`mifostenant-default`.m_staff s
-	ON
-#    u.firstname = s.firstname
-    u.lastname = s.lastname
+		`mifostenant-default`.m_staff s
+		ON
+    	u.firstname = s.firstname
+		AND
+        u.lastname = s.lastname
 ;
 
 
@@ -35,30 +63,49 @@ SELECT * FROM input_db.branch;
 -- 2 Tests for Clients
 -- -----------------
 
-SELECT * FROM `mifostenant-default`.m_client; #13856
+SELECT * FROM `mifostenant-default`.m_client; #14083
 SELECT * FROM input_db.client; #13591
 
+SHOW COLUMNS FROM `mifostenant-default`.m_client;
+SHOW COLUMNS FROM input_db.client;
 
--- compare counts
+
+-- 1) compare counts
 
 SELECT
-	"Mambu"								AS data_source
-	,COUNT(encodedkey) 					AS clients #13591
-	,COUNT(firstname) 					AS clients_firstnames #13591
-    ,COUNT(DISTINCT firstname) 			AS clients_distinct_firstnames #3985
-    ,COUNT(*)-COUNT(firstname)			AS null_firstnames
-    ,COUNT(lastname) 					AS clients_lastnames #13591
+	"Mambu"												AS data_source
+	,COUNT(id)		 									AS clients #13591
+
+	,COUNT(firstname) 									AS firstnames #13591
+    ,COUNT(DISTINCT firstname) 							AS distinct_firstnames #3985
+    ,COUNT(*)-COUNT(firstname)							AS null_firstnames
+
+    ,COUNT(lastname) 									AS lastnames #13591
+    ,COUNT(DISTINCT lastname)				 			AS distinct_lasts #3985
+    ,COUNT(*)-COUNT(lastname)							AS null_lasts    
+
+    ,COUNT(activationdate) 								AS activation_dates
+    ,COUNT(DISTINCT activationdate) 					AS distinct_act_dates
+    ,COUNT(*)-COUNT(activationdate)						AS null_act_dates
 FROM
 	input_db.client
 
 UNION
 SELECT
-	"Migrated"							AS data_source
-	,COUNT(id) 							AS clients
-	,COUNT(firstname) 					AS clients_firstnames
-    ,COUNT(DISTINCT firstname) 			AS clients_distinct_firstnames
-    ,COUNT(*)-COUNT(firstname)			AS null_firstnames
-    ,COUNT(lastname) 					AS clients_lastnames
+	"Mifos"												AS data_source
+	,COUNT(id) 											AS clients
+
+	,COUNT(firstname) 									AS firstnames
+    ,COUNT(DISTINCT firstname) 							AS distinct_firstnames
+    ,COUNT(*)-COUNT(firstname)							AS null_firstnames
+
+    ,COUNT(lastname) 									AS lastnames
+    ,COUNT(DISTINCT lastname) 							AS distinct_lasts
+    ,COUNT(*)-COUNT(lastname)							AS null_lasts
+
+    ,COUNT(activation_date) 							AS activation_dates
+    ,COUNT(DISTINCT activation_date) 					AS distinct_act_dates
+    ,COUNT(*)-COUNT(activation_date)					AS null_act_dates
 FROM
 	`mifostenant-default`.m_client
 ;
@@ -67,49 +114,36 @@ FROM
 -- create list of clients in Mambu that aren't in Mifos
 
 SELECT
-	mamb_cli.firstname
-    ,mamb_cli.lastname
-    ,mamb_cli.id
+	firstname
+    ,lastname
+    ,id
 FROM
-	input_db.client								AS mamb_cli
-    
-	LEFT JOIN
-    `mifostenant-default`.m_client  			AS m_cli
-	ON 
-    -- mamb_cli.firstname = m_cli.firstname
--- 	AND mamb_cli.lastname = m_cli.lastname
--- 	AND 
-    mamb_cli.encodedkey = m_cli.external_id
-	# result of join is: all records from mambu, and each record has the mifos record that matches it on first, last name, id. If there are more than one matching mifos records, the mambu record is duplicated for each matching mifos record, if there is no matching mifos record, the mambu record is still there but has NULL for all the mifos fields. If there were multiple matching mifos records, the mambu record is duplicated too.
+	input_db.client
 WHERE
--- 	m_cli.firstname is null
--- 	OR m_cli.lastname is null
--- 	OR 
-    m_cli.external_id is null
-    #result of where statement: only shows records from select statement that have data in mambu fields, but NULL in mifos fields. These happen because of the 	LEFT JOIN. These are records that didn't make it to mifos.
-;	
+	id is null
+;
 
 
--- the extra clients in mifos.
+-- 3) the extra clients in mifos.
 
 SELECT
-	*
-FROM 
-	`mifostenant-default`.m_client m_c
-
-	LEFT JOIN 
-	input_db.client c
-	ON 
-	m_c.external_id = c.encodedkey
-WHERE 
-	c.firstname is null
+	firstname
+    ,middlename
+    ,lastname
+    ,fullname
+    ,display_name
+    ,activation_date
+FROM
+	`mifostenant-default`.m_client
+WHERE
+	external_id is null
 ;
-	# try with Even more fields in common: compare the records of each client (after having joined all loans, loan officer, etc) with the migrated records of each client (after having joined the same fields on)
 
 
 /*
 Which fields didn't migrate:
 	-- birthday
+    -- mobile phone
     
 Which relationships didn't migrate:
 	-- some clients belonged to a branch office and belonged to a group from a different branch office.
@@ -117,7 +151,7 @@ Which relationships didn't migrate:
 */    
 
 
--- Loan officers have correct number of clients
+-- 4) Loan officers have correct number of clients
 
 SELECT
 	u.firstname
@@ -166,7 +200,7 @@ SELECT * FROM input_db.centre;
 SELECT * FROM `mifostenant-default`.m_group WHERE level_id = 1;
 
 
--- count centers
+-- 1) count centers
 
 SELECT
 	"Mambu"								AS db
@@ -187,7 +221,7 @@ WHERE
 ;
 
 
--- counts for relevant fields in both dbs
+-- 2) counts for relevant fields in both dbs
 
 SELECT
 	"Mambu"								AS db,
@@ -237,7 +271,7 @@ WHERE
 ;
 
 
--- which Mambu centers have same name but different id?
+-- 3) which Mambu centers have same name but different id?
 
 SELECT 
 	*
