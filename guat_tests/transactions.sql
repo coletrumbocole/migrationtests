@@ -99,43 +99,102 @@ FROM
 
 
 -- 2) see if every loan balance matches the most recent transaction balance
-# this will check within Mambu only.
-SELECT
-	# loan balance on loan
-	# loan balance on most recent transaction of loan
-	# matching
-	# count
-#    AVG(l.principalbalance)								AS avg_bal
-#    ,AVG(ltd.balance)									AS avg_bal_t
-    IF(l.principalbalance = ltd.balance,
-		"yes",
-        "no")											AS matching
-	,COUNT(*)
-FROM
-	# every loan in loanaccount
-    # joined to its most recent transaction.
-    `guat`.loanaccount									AS l
-    
-    LEFT JOIN
-		(SELECT
-			parentaccountkey
-            ,balance
-            ,MAX(entrydate)
-		FROM
-			`guat`.loantransaction
-		GROUP BY parentaccountkey
-		)												AS ltd
-	ON
-		l.encodedkey = ltd.parentaccountkey
-GROUP BY
-	matching
-;
+
+#problems: if two transactions happen at the same time, which is more recent?
+-- # this will check within Mambu only.
+-- SELECT
+-- #    AVG(l.principalbalance)								AS avg_bal
+-- #    ,AVG(ltd.balance)									AS avg_bal_t
+--     IF(l.principalbalance = lt.balance,
+-- 		"yes",
+--         "no")											AS matching
+-- 	,COUNT(*)											AS count
+-- FROM # every loan in loanaccount joined to its most recent transaction.
+--     `guat`.loanaccount									AS l
+-- 
+-- 	LEFT JOIN
+-- 		(SELECT
+-- 			parentaccountkey
+-- 			,MAX(entrydate)
+-- 		FROM
+-- 			`guat`.loantransaction						AS lt1
+-- 
+-- 			LEFT JOIN
+-- 				`guat`.loantransaction					AS lt2
+-- 				ON lt1.encodedkey = lt2.encodedkey
+-- 		)												AS lt
+-- 	ON
+-- 		l.encodedkey = lt.parentaccountkey
+-- GROUP BY
+-- 	matching
+-- ;
+-- #MIFOS
+-- SELECT
+--     IF(l.principal_outstanding_derived = lbd.bal,
+-- 		"yes",
+--         "no")											AS matching
+-- 	,COUNT(*)											AS count
+-- FROM
+-- 	# every loan in loanaccount
+--     # joined to its most recent transaction.
+--     `mifos-guat`.m_loan									AS l
+--     
+--     LEFT JOIN
+-- 		(SELECT
+-- 			loan_id
+--             ,outstanding_loan_balance_derived			AS bal # this value won't necessarily be from the same record as the max date.
+--             ,MAX(transaction_date)						AS `date` #but just because I ask for the MAX here, does that mean I'll get the loan_id and bal that correspond?
+-- 		FROM
+-- 			`mifos-guat`.m_loan_transaction
+-- 		GROUP BY loan_id
+-- 		)												AS lbd
+-- 	ON
+-- 		l.id = lbd.loan_id
+-- GROUP BY
+-- 	matching
+-- ;
+-- 
 
 
 -- 3) see if transactions total to the same as loans.
 
+	#basically I'm checking to see that the total disbursed as seen in the loans is the same as the total disbursed as seen in the transactions.
+SELECT
+	(SELECT
+		SUM(amount)
+	FROM
+		`mifos-guat`.m_loan_transaction
+	WHERE
+		transaction_type_enum = 1
+	)													AS tot_m_t
+	,(SELECT
+		SUM(principal_disbursed_derived)
+	FROM
+		`mifos-guat`.m_loan
+	)													AS tot_m_l
+	,(SELECT SUM(principalamount)
+	FROM `guat`.loantransaction
+	WHERE `type` = 'DISBURSMENT' AND reversaltransactionkey is null # It’s null if the transaction wasn’t reversed.
+-- 
+-- 		(SELECT SUM(principalamount)
+-- 		FROM `guat`.loantransaction
+-- 		WHERE `type` = 'DISBURSMENT')
+--         -
+--         (SELECT SUM(principalamount)
+-- 		FROM `guat`.loantransaction
+-- 		WHERE `type` = 'DISBURSMENT' AND reversal_id is not null)
+	)													AS tot_lt
+	,(SELECT
+		SUM(loanamount)
+	FROM
+		`guat`.loanaccount
+	)													AS tot_l
+;
 
 -- 4) see if every loan has a disbursement transaction
+
+	# why is this a test? I shouldn't expect every loan to be disbursed.
+	# or if I'm trying to only look at loans that are supposed to be disbursed, how do I know which ones are supposed to be disbursed?
 
 SELECT
 # count of loans with disbursement
@@ -196,4 +255,4 @@ LEFT JOIN
 
 # total disbursements ?= total principal amount
 # total repaymeny ?= total repaid_derived
-#etc
+# etc
