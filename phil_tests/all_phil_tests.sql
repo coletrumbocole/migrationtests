@@ -154,35 +154,53 @@ Which relationships didn't migrate:
 -- 4) Loan officers have correct number of clients
 
 SELECT
-	u.firstname
-    ,u.lastname
-    ,COUNT(c.ENCODEDKEY)						AS clients
+	if(users.clients = staffs.clients,
+		"yes",
+        "no")											as matching
+	,count(*)
+--     ,if(users.clients = staffs.clients,
+-- 		null,
+--         concat(users.firstname, " ", users.lastname))	as mambu_user
+--     ,if(users.clients = staffs.clients,
+-- 		null,
+--         users.clients)									as mambu_user_clients
+--     ,if(users.clients = staffs.clients,
+-- 		null,
+--         concat(staffs.firstname, " ", staffs.lastname))	as m_staff
+--     ,if(users.clients = staffs.clients,
+-- 		null,
+--         staffs.clients)									as m_staff_clients
 FROM
-	input_db.client								AS c
-
-	LEFT JOIN
-    input_db.user  								AS u
-	ON
-    u.encodedkey = c.assigneduserkey
-
-GROUP BY
-	c.ASSIGNEDUSERKEY
+	(Select
+		u.encodedkey
+        ,u.firstname
+        ,u.lastname
+		,count(c.firstname) as clients
+	from
+		input_db.user u
+    
+		left join
+			input_db.client c
+			on u.encodedkey = c.assigneduserkey
+	group by u.encodedkey
+    ) users
+	
+    left join
+		(Select
+			s.external_id
+			,s.firstname
+            ,s.lastname
+			,count(m_c.firstname) as clients
+		from
+			`mifostenant-default`.m_staff s
+		
+			left join
+				`mifostenant-default`.m_client m_c
+				on s.id = m_c.staff_id
+		group by s.id) staffs
+        
+        ON users.encodedkey = staffs.external_id
 ;
-
-SELECT
-	s.firstname
-    ,s.lastname
-    ,COUNT(c.id)								AS clients
-FROM
-	`mifostenant-default`.m_client				AS c
-	LEFT JOIN
-    `mifostenant-default`.m_staff				AS s
-	ON
-	s.id = c.staff_id
-GROUP BY
-	c.staff_id
-;
-
 
 #########################################################################################
 
